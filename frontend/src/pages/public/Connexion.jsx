@@ -20,33 +20,66 @@ export default function Connexion() {
 
   const [searchParams] = useSearchParams();
 
+  // =====================================================
+  // PARCOURS D'ARRIVÉE
+  // =====================================================
+  // ?redirect=conducteur signifie que l'utilisateur
+  // a cliqué sur "Devenir conducteur" avant d'arriver ici.
+  //
+  // Sans ce paramètre = connexion normale.
+  // =====================================================
+
   const redirect = searchParams.get("redirect");
+
+  const parcoursConducteur = redirect === "conducteur";
+
+  // =====================================================
+  // CONNEXION
+  // =====================================================
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     setErreur("");
-
     setChargement(true);
 
     try {
       const utilisateur = await connexion(email, motDePasse);
 
-      // Cas demande conducteur
+      // =================================================
+      // CAS 1 : PARCOURS "DEVENIR CONDUCTEUR"
+      // =================================================
 
-      if (redirect === "conducteur") {
-        navigate("/conducteur/inscription");
+      if (parcoursConducteur) {
+        // L'utilisateur possède déjà un compte conducteur.
+        // Il n'a donc pas besoin de refaire le formulaire.
+        if (utilisateur?.role === "conducteur") {
+          navigate("/conducteur", {
+            replace: true,
+          });
+
+          return;
+        }
+
+        // Utilisateur connecté mais pas encore conducteur :
+        // continuer vers le formulaire conducteur.
+        navigate("/conducteur/inscription", {
+          replace: true,
+        });
 
         return;
       }
 
-      // Redirection selon rôle
+      // =================================================
+      // CAS 2 : CONNEXION NORMALE
+      // =================================================
+      // Peu importe que l'utilisateur soit passager
+      // ou déjà conducteur : une connexion normale
+      // retourne toujours vers la page d'accueil.
 
-      if (utilisateur.role === "conducteur") {
-        navigate("/conducteur");
-      } else {
-        navigate("/passager");
-      }
+      navigate("/", {
+        replace: true,
+      });
     } catch {
       setErreur("Email ou mot de passe incorrect");
     } finally {
@@ -57,9 +90,9 @@ export default function Connexion() {
   return (
     <div
       className="
-      min-h-screen
-      flex
-      bg-gray-50
+        min-h-screen
+        flex
+        bg-gray-50
       "
     >
       {/* =========================
@@ -68,41 +101,41 @@ export default function Connexion() {
 
       <div
         className="
-        hidden
-        md:flex
-        w-1/2
-        relative
-        bg-cover
-        bg-center
+          hidden
+          md:flex
+          w-1/2
+          relative
+          bg-cover
+          bg-center
         "
         style={{
           backgroundImage: `
-          linear-gradient(
-            rgba(6,42,37,0.78),
-            rgba(6,42,37,0.78)
-          ),
-          url(${loginBg})
+            linear-gradient(
+              rgba(6,42,37,0.78),
+              rgba(6,42,37,0.78)
+            ),
+            url(${loginBg})
           `,
         }}
       >
         <div
           className="
-          relative
-          z-10
-          flex
-          flex-col
-          justify-center
-          px-12
-          text-white
-          max-w-xl
+            relative
+            z-10
+            flex
+            flex-col
+            justify-center
+            px-12
+            text-white
+            max-w-xl
           "
         >
           <h1
             className="
-            text-5xl
-            font-bold
-            leading-tight
-            mb-6
+              text-5xl
+              font-bold
+              leading-tight
+              mb-6
             "
           >
             Voyagez en toute confiance avec MadaGo
@@ -110,9 +143,9 @@ export default function Connexion() {
 
           <p
             className="
-            text-lg
-            text-gray-200
-            leading-relaxed
+              text-lg
+              text-gray-200
+              leading-relaxed
             "
           >
             Votre plateforme de transport simple, sécurisée et accessible
@@ -121,9 +154,9 @@ export default function Connexion() {
 
           <div
             className="
-            mt-10
-            space-y-4
-            text-lg
+              mt-10
+              space-y-4
+              text-lg
             "
           >
             <p>🔐 Connexion sécurisée</p>
@@ -143,53 +176,53 @@ export default function Connexion() {
 
       <div
         className="
-        w-full
-        md:w-1/2
-        flex
-        items-center
-        justify-center
-        px-6
-        py-10
+          w-full
+          md:w-1/2
+          flex
+          items-center
+          justify-center
+          px-6
+          py-10
         "
       >
         <div
           className="
-          w-full
-          max-w-md
-          bg-white
-          rounded-3xl
-          shadow-xl
-          border
-          border-gray-100
-          p-8
+            w-full
+            max-w-md
+            bg-white
+            rounded-3xl
+            shadow-xl
+            border
+            border-gray-100
+            p-8
           "
         >
           {/* Logo */}
 
           <div
             className="
-            text-center
-            mb-8
+              text-center
+              mb-8
             "
           >
             <img
               src={logoMadaGo}
               alt="MadaGo"
               className="
-              h-20
-              w-auto
-              mx-auto
-              object-contain
+                h-20
+                w-auto
+                mx-auto
+                object-contain
               "
             />
 
             <p
               className="
-              mt-3
-              text-gray-500
+                mt-3
+                text-gray-500
               "
             >
-              {redirect === "conducteur"
+              {parcoursConducteur
                 ? "Connectez-vous pour devenir conducteur"
                 : "Bienvenue sur MadaGo"}
             </p>
@@ -201,17 +234,17 @@ export default function Connexion() {
 
           {/* Message conducteur */}
 
-          {redirect === "conducteur" && (
+          {parcoursConducteur && (
             <div
               className="
-              mb-5
-              bg-green-50
-              border
-              border-green-200
-              rounded-xl
-              p-4
-              text-sm
-              text-green-800
+                mb-5
+                bg-green-50
+                border
+                border-green-200
+                rounded-xl
+                p-4
+                text-sm
+                text-green-800
               "
             >
               🚗 Après connexion, vous pourrez continuer votre inscription
@@ -222,7 +255,7 @@ export default function Connexion() {
           <form
             onSubmit={handleSubmit}
             className="
-            space-y-5
+              space-y-5
             "
           >
             {/* Email */}
@@ -230,11 +263,11 @@ export default function Connexion() {
             <div>
               <label
                 className="
-                block
-                mb-2
-                text-sm
-                font-semibold
-                text-[#062A25]
+                  block
+                  mb-2
+                  text-sm
+                  font-semibold
+                  text-[#062A25]
                 "
               >
                 📧 Email
@@ -247,15 +280,15 @@ export default function Connexion() {
                 placeholder="votre@email.com"
                 required
                 className="
-                w-full
-                px-4
-                py-3
-                rounded-xl
-                border
-                border-gray-200
-                focus:ring-2
-                focus:ring-[#23C483]
-                outline-none
+                  w-full
+                  px-4
+                  py-3
+                  rounded-xl
+                  border
+                  border-gray-200
+                  focus:ring-2
+                  focus:ring-[#23C483]
+                  outline-none
                 "
               />
             </div>
@@ -265,21 +298,17 @@ export default function Connexion() {
             <div>
               <label
                 className="
-                block
-                mb-2
-                text-sm
-                font-semibold
-                text-[#062A25]
+                  block
+                  mb-2
+                  text-sm
+                  font-semibold
+                  text-[#062A25]
                 "
               >
                 🔒 Mot de passe
               </label>
 
-              <div
-                className="
-                relative
-                "
-              >
+              <div className="relative">
                 <input
                   type={afficherMotDePasse ? "text" : "password"}
                   value={motDePasse}
@@ -287,16 +316,16 @@ export default function Connexion() {
                   placeholder="••••••••"
                   required
                   className="
-                  w-full
-                  px-4
-                  py-3
-                  pr-12
-                  rounded-xl
-                  border
-                  border-gray-200
-                  focus:ring-2
-                  focus:ring-[#23C483]
-                  outline-none
+                    w-full
+                    px-4
+                    py-3
+                    pr-12
+                    rounded-xl
+                    border
+                    border-gray-200
+                    focus:ring-2
+                    focus:ring-[#23C483]
+                    outline-none
                   "
                 />
 
@@ -304,10 +333,10 @@ export default function Connexion() {
                   type="button"
                   onClick={() => setAfficherMotDePasse(!afficherMotDePasse)}
                   className="
-                  absolute
-                  right-4
-                  top-1/2
-                  -translate-y-1/2
+                    absolute
+                    right-4
+                    top-1/2
+                    -translate-y-1/2
                   "
                 >
                   {afficherMotDePasse ? "🙈" : "👁"}
@@ -317,18 +346,14 @@ export default function Connexion() {
 
             {/* Mot de passe oublié */}
 
-            <div
-              className="
-              text-right
-              "
-            >
+            <div className="text-right">
               <button
                 type="button"
                 className="
-                text-sm
-                text-[#23C483]
-                font-semibold
-                hover:underline
+                  text-sm
+                  text-[#23C483]
+                  font-semibold
+                  hover:underline
                 "
               >
                 Mot de passe oublié ?
@@ -341,16 +366,16 @@ export default function Connexion() {
               type="submit"
               disabled={chargement}
               className="
-              w-full
-              bg-[#062A25]
-              hover:bg-[#041D19]
-              text-white
-              py-3
-              rounded-xl
-              font-semibold
-              transition
-              shadow-md
-              disabled:opacity-50
+                w-full
+                bg-[#062A25]
+                hover:bg-[#041D19]
+                text-white
+                py-3
+                rounded-xl
+                font-semibold
+                transition
+                shadow-md
+                disabled:opacity-50
               "
             >
               {chargement ? "Connexion..." : "Se connecter"}
@@ -361,12 +386,12 @@ export default function Connexion() {
 
           <div
             className="
-            mt-6
-            bg-green-50
-            rounded-xl
-            p-4
-            text-sm
-            text-green-800
+              mt-6
+              bg-green-50
+              rounded-xl
+              p-4
+              text-sm
+              text-green-800
             "
           >
             🔐 Connexion sécurisée MadaGo
@@ -379,21 +404,23 @@ export default function Connexion() {
 
           <p
             className="
-            text-center
-            mt-6
-            text-sm
-            text-gray-500
+              text-center
+              mt-6
+              text-sm
+              text-gray-500
             "
           >
             Pas encore de compte ?{" "}
             <Link
               to={
-                redirect ? `/inscription?redirect=${redirect}` : "/inscription"
+                parcoursConducteur
+                  ? "/inscription?redirect=conducteur"
+                  : "/inscription"
               }
               className="
-              text-[#23C483]
-              font-bold
-              hover:underline
+                text-[#23C483]
+                font-bold
+                hover:underline
               "
             >
               Créer un compte

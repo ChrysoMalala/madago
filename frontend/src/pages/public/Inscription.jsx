@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import MessageErreur from "../../components/MessageErreur";
 
@@ -25,6 +25,20 @@ export default function Inscription() {
 
   const navigate = useNavigate();
 
+  const [searchParams] = useSearchParams();
+
+  // =====================================================
+  // PARCOURS D'ARRIVÉE
+  // =====================================================
+
+  const redirect = searchParams.get("redirect");
+
+  const parcoursConducteur = redirect === "conducteur";
+
+  // =====================================================
+  // FORMULAIRE
+  // =====================================================
+
   const handleChange = (e) => {
     setForm({
       ...form,
@@ -32,6 +46,10 @@ export default function Inscription() {
       [e.target.name]: e.target.value,
     });
   };
+
+  // =====================================================
+  // INSCRIPTION
+  // =====================================================
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -41,9 +59,44 @@ export default function Inscription() {
     setChargement(true);
 
     try {
-      await inscription(form);
+      const utilisateur = await inscription(form);
 
-      navigate("/passager");
+      // =================================================
+      // PARCOURS "DEVENIR CONDUCTEUR"
+      // =================================================
+
+      if (parcoursConducteur) {
+        /*
+         * Normalement, un compte qui vient juste
+         * d'être créé n'est pas encore conducteur.
+         *
+         * On garde néanmoins cette vérification pour
+         * que la logique reste cohérente si l'API
+         * retourne déjà un utilisateur conducteur.
+         */
+
+        if (utilisateur?.role === "conducteur") {
+          navigate("/conducteur", {
+            replace: true,
+          });
+
+          return;
+        }
+
+        navigate("/conducteur/inscription", {
+          replace: true,
+        });
+
+        return;
+      }
+
+      // =================================================
+      // INSCRIPTION NORMALE
+      // =================================================
+
+      navigate("/", {
+        replace: true,
+      });
     } catch {
       setErreur("Une erreur est survenue. Vérifiez vos informations.");
     } finally {
@@ -54,9 +107,9 @@ export default function Inscription() {
   return (
     <div
       className="
-      min-h-screen
-      flex
-      bg-gray-50
+        min-h-screen
+        flex
+        bg-gray-50
       "
     >
       {/* ==========================
@@ -65,40 +118,40 @@ export default function Inscription() {
 
       <div
         className="
-        hidden
-        md:flex
-        w-1/2
-        bg-cover
-        bg-center
-        relative
+          hidden
+          md:flex
+          w-1/2
+          bg-cover
+          bg-center
+          relative
         "
         style={{
           backgroundImage: `
-          linear-gradient(
-          rgba(6,42,37,0.78),
-          rgba(6,42,37,0.78)
-          ),
-          url(${loginBg})
+            linear-gradient(
+              rgba(6,42,37,0.78),
+              rgba(6,42,37,0.78)
+            ),
+            url(${loginBg})
           `,
         }}
       >
         <div
           className="
-          relative
-          z-10
-          flex
-          flex-col
-          justify-center
-          px-12
-          text-white
+            relative
+            z-10
+            flex
+            flex-col
+            justify-center
+            px-12
+            text-white
           "
         >
           <h1
             className="
-            text-5xl
-            font-bold
-            leading-tight
-            mb-6
+              text-5xl
+              font-bold
+              leading-tight
+              mb-6
             "
           >
             Rejoignez MadaGo 🚗
@@ -106,9 +159,9 @@ export default function Inscription() {
 
           <p
             className="
-            text-lg
-            text-gray-200
-            leading-relaxed
+              text-lg
+              text-gray-200
+              leading-relaxed
             "
           >
             Créez votre compte et profitez d'une nouvelle expérience de
@@ -117,9 +170,9 @@ export default function Inscription() {
 
           <div
             className="
-            mt-10
-            space-y-4
-            text-lg
+              mt-10
+              space-y-4
+              text-lg
             "
           >
             <p>✓ Réservation facile</p>
@@ -139,53 +192,55 @@ export default function Inscription() {
 
       <div
         className="
-        w-full
-        md:w-1/2
-        flex
-        items-center
-        justify-center
-        px-6
-        py-10
+          w-full
+          md:w-1/2
+          flex
+          items-center
+          justify-center
+          px-6
+          py-10
         "
       >
         <div
           className="
-          bg-white
-          rounded-3xl
-          shadow-xl
-          border
-          border-gray-100
-          p-8
-          w-full
-          max-w-md
+            bg-white
+            rounded-3xl
+            shadow-xl
+            border
+            border-gray-100
+            p-8
+            w-full
+            max-w-md
           "
         >
           {/* Logo */}
 
           <div
             className="
-            text-center
-            mb-7
+              text-center
+              mb-7
             "
           >
             <img
               src={logoMadaGo}
               alt="MadaGo"
               className="
-              h-24
-              w-auto
-              mx-auto
-              object-contain
+                h-24
+                w-auto
+                mx-auto
+                object-contain
               "
             />
 
             <p
               className="
-              mt-3
-              text-gray-500
+                mt-3
+                text-gray-500
               "
             >
-              Créez votre compte MadaGo
+              {parcoursConducteur
+                ? "Créez votre compte pour devenir conducteur"
+                : "Créez votre compte MadaGo"}
             </p>
           </div>
 
@@ -193,49 +248,71 @@ export default function Inscription() {
 
           <MessageErreur message={erreur} />
 
-          {/* Information compte */}
+          {/* =================================================
+              INFORMATION
+          ================================================= */}
 
-          <div
-            className="
-            bg-green-50
-            border
-            border-green-200
-            rounded-xl
-            p-4
-            mb-6
-            text-sm
-            text-green-800
-            "
-          >
-            🧳 <strong>Compte passager</strong>
-            <br />
-            Vous pourrez rechercher des trajets, réserver vos places et demander
-            à devenir conducteur depuis votre espace personnel.
-          </div>
+          {parcoursConducteur ? (
+            <div
+              className="
+                bg-green-50
+                border
+                border-green-200
+                rounded-xl
+                p-4
+                mb-6
+                text-sm
+                text-green-800
+              "
+            >
+              🚗 <strong>Devenir conducteur</strong>
+              <br />
+              Créez d'abord votre compte MadaGo. Après l'inscription, vous
+              pourrez compléter vos informations conducteur.
+            </div>
+          ) : (
+            <div
+              className="
+                bg-green-50
+                border
+                border-green-200
+                rounded-xl
+                p-4
+                mb-6
+                text-sm
+                text-green-800
+              "
+            >
+              🧳 <strong>Compte MadaGo</strong>
+              <br />
+              Vous pourrez rechercher des trajets, réserver vos places et
+              demander à devenir conducteur quand vous le souhaitez.
+            </div>
+          )}
 
           <form
             onSubmit={handleSubmit}
             className="
-            space-y-4
+              space-y-4
             "
           >
             {/* Nom prénom */}
 
             <div
               className="
-              grid
-              grid-cols-2
-              gap-4
+                grid
+                grid-cols-2
+                gap-4
               "
             >
               <div>
                 <label
                   className="
-                  block
-                  text-sm
-                  font-semibold
-                  text-[#062A25]
-                  mb-2
+                    block
+                    text-sm
+                    font-semibold
+                    text-[#062A25]
+                    mb-2
                   "
                 >
                   👤 Nom
@@ -249,15 +326,15 @@ export default function Inscription() {
                   placeholder="Rakoto"
                   required
                   className="
-                  w-full
-                  px-4
-                  py-3
-                  rounded-xl
-                  border
-                  border-gray-200
-                  focus:ring-2
-                  focus:ring-[#23C483]
-                  outline-none
+                    w-full
+                    px-4
+                    py-3
+                    rounded-xl
+                    border
+                    border-gray-200
+                    focus:ring-2
+                    focus:ring-[#23C483]
+                    outline-none
                   "
                 />
               </div>
@@ -265,11 +342,11 @@ export default function Inscription() {
               <div>
                 <label
                   className="
-                  block
-                  text-sm
-                  font-semibold
-                  text-[#062A25]
-                  mb-2
+                    block
+                    text-sm
+                    font-semibold
+                    text-[#062A25]
+                    mb-2
                   "
                 >
                   👤 Prénom
@@ -283,15 +360,15 @@ export default function Inscription() {
                   placeholder="Jean"
                   required
                   className="
-                  w-full
-                  px-4
-                  py-3
-                  rounded-xl
-                  border
-                  border-gray-200
-                  focus:ring-2
-                  focus:ring-[#23C483]
-                  outline-none
+                    w-full
+                    px-4
+                    py-3
+                    rounded-xl
+                    border
+                    border-gray-200
+                    focus:ring-2
+                    focus:ring-[#23C483]
+                    outline-none
                   "
                 />
               </div>
@@ -302,11 +379,11 @@ export default function Inscription() {
             <div>
               <label
                 className="
-                block
-                text-sm
-                font-semibold
-                text-[#062A25]
-                mb-2
+                  block
+                  text-sm
+                  font-semibold
+                  text-[#062A25]
+                  mb-2
                 "
               >
                 📧 Email
@@ -320,15 +397,15 @@ export default function Inscription() {
                 placeholder="votre@email.com"
                 required
                 className="
-                w-full
-                px-4
-                py-3
-                rounded-xl
-                border
-                border-gray-200
-                focus:ring-2
-                focus:ring-[#23C483]
-                outline-none
+                  w-full
+                  px-4
+                  py-3
+                  rounded-xl
+                  border
+                  border-gray-200
+                  focus:ring-2
+                  focus:ring-[#23C483]
+                  outline-none
                 "
               />
             </div>
@@ -338,11 +415,11 @@ export default function Inscription() {
             <div>
               <label
                 className="
-                block
-                text-sm
-                font-semibold
-                text-[#062A25]
-                mb-2
+                  block
+                  text-sm
+                  font-semibold
+                  text-[#062A25]
+                  mb-2
                 "
               >
                 📱 Téléphone
@@ -356,15 +433,15 @@ export default function Inscription() {
                 placeholder="+261341234567"
                 required
                 className="
-                w-full
-                px-4
-                py-3
-                rounded-xl
-                border
-                border-gray-200
-                focus:ring-2
-                focus:ring-[#23C483]
-                outline-none
+                  w-full
+                  px-4
+                  py-3
+                  rounded-xl
+                  border
+                  border-gray-200
+                  focus:ring-2
+                  focus:ring-[#23C483]
+                  outline-none
                 "
               />
             </div>
@@ -374,11 +451,11 @@ export default function Inscription() {
             <div>
               <label
                 className="
-                block
-                text-sm
-                font-semibold
-                text-[#062A25]
-                mb-2
+                  block
+                  text-sm
+                  font-semibold
+                  text-[#062A25]
+                  mb-2
                 "
               >
                 🔒 Mot de passe
@@ -393,16 +470,16 @@ export default function Inscription() {
                   placeholder="••••••••"
                   required
                   className="
-                  w-full
-                  px-4
-                  py-3
-                  pr-12
-                  rounded-xl
-                  border
-                  border-gray-200
-                  focus:ring-2
-                  focus:ring-[#23C483]
-                  outline-none
+                    w-full
+                    px-4
+                    py-3
+                    pr-12
+                    rounded-xl
+                    border
+                    border-gray-200
+                    focus:ring-2
+                    focus:ring-[#23C483]
+                    outline-none
                   "
                 />
 
@@ -410,10 +487,10 @@ export default function Inscription() {
                   type="button"
                   onClick={() => setAfficherMotDePasse(!afficherMotDePasse)}
                   className="
-                  absolute
-                  right-4
-                  top-1/2
-                  -translate-y-1/2
+                    absolute
+                    right-4
+                    top-1/2
+                    -translate-y-1/2
                   "
                 >
                   {afficherMotDePasse ? "🙈" : "👁"}
@@ -427,16 +504,16 @@ export default function Inscription() {
               type="submit"
               disabled={chargement}
               className="
-              w-full
-              bg-[#062A25]
-              hover:bg-[#041D19]
-              text-white
-              py-3
-              rounded-xl
-              font-semibold
-              transition
-              shadow-md
-              disabled:opacity-50
+                w-full
+                bg-[#062A25]
+                hover:bg-[#041D19]
+                text-white
+                py-3
+                rounded-xl
+                font-semibold
+                transition
+                shadow-md
+                disabled:opacity-50
               "
             >
               {chargement ? "Création..." : "Créer mon compte"}
@@ -447,12 +524,12 @@ export default function Inscription() {
 
           <div
             className="
-            mt-6
-            bg-green-50
-            rounded-xl
-            p-4
-            text-sm
-            text-green-800
+              mt-6
+              bg-green-50
+              rounded-xl
+              p-4
+              text-sm
+              text-green-800
             "
           >
             🔐 Vos informations sont protégées
@@ -465,19 +542,23 @@ export default function Inscription() {
 
           <p
             className="
-            text-center
-            mt-6
-            text-sm
-            text-gray-500
+              text-center
+              mt-6
+              text-sm
+              text-gray-500
             "
           >
             Déjà un compte ?{" "}
             <Link
-              to="/connexion"
+              to={
+                parcoursConducteur
+                  ? "/connexion?redirect=conducteur"
+                  : "/connexion"
+              }
               className="
-              text-[#23C483]
-              font-bold
-              hover:underline
+                text-[#23C483]
+                font-bold
+                hover:underline
               "
             >
               Se connecter

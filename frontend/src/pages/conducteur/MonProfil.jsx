@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+
 import { Link } from "react-router-dom";
 
 import LayoutConducteur from "../../components/LayoutConducteur";
@@ -7,57 +8,75 @@ import MessageErreur from "../../components/MessageErreur";
 import NoteGlobale from "../../components/NoteGlobale";
 import AvisCard from "../../components/AvisCard";
 
+import { useAuth } from "../../context/AuthContext";
 import api from "../../api/axios";
 
-// Django renvoie des chemins relatifs (/media/...)
-// Reconstruction URL complète backend
+// =======================================================
+// IMAGES DOCUMENTS CONDUCTEUR
+// =======================================================
+
 const URL_BACKEND = "http://127.0.0.1:8000";
 
-const urlImage = (chemin) => (chemin ? `${URL_BACKEND}${chemin}` : null);
+const urlImage = (chemin) => {
+  if (!chemin) return null;
 
-// Statuts conducteur
+  if (chemin.startsWith("http://") || chemin.startsWith("https://")) {
+    return chemin;
+  }
+
+  return `${URL_BACKEND}${chemin}`;
+};
+
+// =======================================================
+// STATUTS
+// =======================================================
 
 const STATUTS = {
   en_attente: {
     texte: "⏳ Validation en cours",
-
     classe: "bg-yellow-100 text-yellow-800",
   },
 
   valide: {
     texte: "🟢 Conducteur validé",
-
     classe: "bg-green-100 text-green-800",
   },
 
   rejete: {
     texte: "🔴 Profil rejeté",
-
     classe: "bg-red-100 text-red-800",
   },
 };
 
 export default function MonProfilConducteur() {
+  const { utilisateur, setUtilisateur } = useAuth();
+
+  const inputPhotoRef = useRef(null);
+
   const [profil, setProfil] = useState(null);
 
   const [chargement, setChargement] = useState(true);
 
   const [erreur, setErreur] = useState("");
 
-  // Avis conducteur
+  const [succes, setSucces] = useState("");
+
+  const [chargementPhoto, setChargementPhoto] = useState(false);
 
   const [donneesAvis, setDonneesAvis] = useState(null);
+
+  // =====================================================
+  // CHARGEMENT
+  // =====================================================
 
   useEffect(() => {
     const chargerProfil = async () => {
       try {
+        setErreur("");
+
         const reponse = await api.get("/conducteurs/moi/");
 
         setProfil(reponse.data);
-
-        // ============================
-        // Chargement avis conducteur
-        // ============================
 
         const conducteurId = reponse.data.id;
 
@@ -84,38 +103,102 @@ export default function MonProfilConducteur() {
     chargerProfil();
   }, []);
 
-  // ============================
-  // Chargement
-  // ============================
+  // =====================================================
+  // PHOTO UNIQUE UTILISATEUR
+  // =====================================================
+
+  const choisirPhoto = () => {
+    inputPhotoRef.current?.click();
+  };
+
+  const modifierPhoto = async (e) => {
+    const fichier = e.target.files?.[0];
+
+    if (!fichier) return;
+
+    setErreur("");
+    setSucces("");
+
+    const typesAutorises = ["image/jpeg", "image/png", "image/webp"];
+
+    if (!typesAutorises.includes(fichier.type)) {
+      setErreur("Veuillez choisir une image JPG, PNG ou WEBP.");
+
+      e.target.value = "";
+      return;
+    }
+
+    if (fichier.size > 5 * 1024 * 1024) {
+      setErreur("La photo ne doit pas dépasser 5 Mo.");
+
+      e.target.value = "";
+      return;
+    }
+
+    setChargementPhoto(true);
+
+    try {
+      const formData = new FormData();
+
+      formData.append("photo_profil", fichier);
+
+      const reponse = await api.put("/utilisateurs/moi/", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      // Mise à jour immédiate de l'utilisateur global.
+      // La Navbar, le profil passager et le profil
+      // conducteur utilisent alors la même PDP.
+      if (reponse.data?.utilisateur) {
+        setUtilisateur(reponse.data.utilisateur);
+      }
+
+      setSucces("Photo de profil mise à jour avec succès !");
+
+      setTimeout(() => {
+        setSucces("");
+      }, 3000);
+    } catch (err) {
+      console.error("Erreur lors de la modification de la PDP :", err);
+
+      console.error("Réponse backend :", err.response?.data);
+
+      setErreur(
+        err.response?.data?.photo_profil?.[0] ||
+          err.response?.data?.erreur ||
+          "Impossible de modifier la photo de profil.",
+      );
+    } finally {
+      setChargementPhoto(false);
+
+      e.target.value = "";
+    }
+  };
+
+  // =====================================================
+  // CHARGEMENT
+  // =====================================================
 
   if (chargement) {
     return (
       <LayoutConducteur>
-        <div
-          className="
-          max-w-6xl
-          mx-auto
-          "
-        >
+        <div className="max-w-6xl mx-auto px-6 py-10">
           <Spinner />
         </div>
       </LayoutConducteur>
     );
   }
 
-  // ============================
-  // Erreur
-  // ============================
+  // =====================================================
+  // ERREUR
+  // =====================================================
 
-  if (erreur || !profil) {
+  if (!profil) {
     return (
       <LayoutConducteur>
-        <div
-          className="
-          max-w-6xl
-          mx-auto
-          "
-        >
+        <div className="max-w-6xl mx-auto px-6 py-10">
           <MessageErreur message={erreur || "Profil introuvable."} />
         </div>
       </LayoutConducteur>
@@ -123,293 +206,370 @@ export default function MonProfilConducteur() {
   }
 
   const statut = STATUTS[profil.statut_validation] || STATUTS.en_attente;
+
+  const photo = utilisateur?.photo_profil;
+
   return (
     <LayoutConducteur>
       <div
         className="
-        max-w-6xl
-        mx-auto
-        px-6
-        py-8
-        space-y-8
+          max-w-6xl
+          mx-auto
+          px-4
+          sm:px-6
+          py-8
+          space-y-6
         "
       >
-        {/* ============================
-            HEADER PROFIL
-        ============================ */}
-        <div
-          className="
-          text-center
-          mb-8
-          "
-        >
-          <img
-            src="/src/assets/images/logoMadaGo.png"
-            alt="MadaGo"
+        {/* ===============================================
+            TITRE
+        =============================================== */}
+
+        <div>
+          <div
             className="
-            h-24
-            mx-auto
-            object-contain
-            mb-5
+              inline-flex
+              items-center
+              px-3
+              py-1
+              rounded-full
+              bg-[#23C483]/10
+              text-[#008F65]
+              text-xs
+              font-bold
+              mb-3
             "
-          />
+          >
+            ESPACE CONDUCTEUR
+          </div>
 
           <h1
             className="
-            text-4xl
-            font-bold
-            text-[#062A25]
+              text-3xl
+              md:text-4xl
+              font-bold
+              text-[#062A25]
             "
           >
-            Bonjour {profil.nom || "Conducteur"} 👋
+            Mon profil conducteur
           </h1>
 
           <p
             className="
-            text-gray-500
-            mt-3
-            text-lg
+              text-gray-500
+              mt-2
             "
           >
-            Bienvenue dans votre espace conducteur MadaGo
+            Gérez votre identité, vos documents et vos informations conducteur
+            MadaGo.
           </p>
         </div>
-        {/* ============================
-            CARTE RESUME
-        ============================ */}
+
+        <MessageErreur message={erreur} />
+
+        {succes && (
+          <div
+            className="
+              bg-green-50
+              border
+              border-green-200
+              text-green-800
+              px-5
+              py-4
+              rounded-2xl
+            "
+          >
+            ✅ {succes}
+          </div>
+        )}
+
+        {/* ===============================================
+            CARTE PROFIL + PDP
+        =============================================== */}
+
         <div
           className="
-          bg-white
-          rounded-3xl
-          border
-          shadow-xl
-          p-8
+            overflow-hidden
+            bg-white
+            border
+            border-gray-100
+            rounded-3xl
+            shadow-sm
           "
         >
           <div
             className="
-            flex
-            flex-col
-            md:flex-row
-            justify-between
-            gap-6
+              h-28
+              bg-gradient-to-r
+              from-[#062A25]
+              to-[#008F65]
+            "
+          />
+
+          <div
+            className="
+              px-6
+              md:px-8
+              pb-8
             "
           >
-            <div>
-              <h2
+            <div
+              className="
+                flex
+                flex-col
+                md:flex-row
+                md:items-end
+                gap-5
+              "
+            >
+              <div
                 className="
-                text-2xl
-                font-bold
-                text-[#062A25]
+                  relative
+                  -mt-14
+                  shrink-0
                 "
               >
-                👤 Profil conducteur
-              </h2>
+                <div
+                  className="
+                    w-28
+                    h-28
+                    md:w-32
+                    md:h-32
+                    rounded-full
+                    border-4
+                    border-white
+                    shadow-lg
+                    bg-[#EAF8F3]
+                    overflow-hidden
+                    flex
+                    items-center
+                    justify-center
+                  "
+                >
+                  {photo ? (
+                    <img
+                      src={photo}
+                      alt="Photo de profil"
+                      className="
+                        w-full
+                        h-full
+                        object-cover
+                      "
+                    />
+                  ) : (
+                    <span className="text-5xl">👤</span>
+                  )}
+                </div>
 
-              <p
-                className="
-                text-gray-600
-                mt-3
-                "
-              >
-                {profil.nom} {profil.prenom}
-              </p>
+                <button
+                  type="button"
+                  onClick={choisirPhoto}
+                  disabled={chargementPhoto}
+                  title="Modifier la photo"
+                  className="
+                    absolute
+                    right-0
+                    bottom-1
+                    w-10
+                    h-10
+                    rounded-full
+                    bg-[#23C483]
+                    text-white
+                    border-4
+                    border-white
+                    shadow-md
+                    flex
+                    items-center
+                    justify-center
+                    hover:bg-[#1cab70]
+                    transition
+                    disabled:opacity-50
+                  "
+                >
+                  {chargementPhoto ? "..." : "📷"}
+                </button>
 
-              <p
+                <input
+                  ref={inputPhotoRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={modifierPhoto}
+                  className="hidden"
+                />
+              </div>
+
+              <div
                 className="
-                text-gray-500
-                text-sm
-                mt-1
+                  flex-1
+                  pt-2
                 "
               >
-                📅 Membre depuis :{" "}
-                {new Date(profil.date_creation).toLocaleDateString("fr-FR")}
-              </p>
+                <h2
+                  className="
+                    text-2xl
+                    font-bold
+                    text-[#062A25]
+                  "
+                >
+                  {utilisateur?.prenom || profil.prenom}{" "}
+                  {utilisateur?.nom || profil.nom}
+                </h2>
+
+                <p
+                  className="
+                    text-gray-500
+                    mt-1
+                  "
+                >
+                  {utilisateur?.email}
+                </p>
+
+                <div
+                  className="
+                    mt-3
+                    flex
+                    flex-wrap
+                    gap-2
+                  "
+                >
+                  <span
+                    className={`
+                      inline-flex
+                      px-3
+                      py-1
+                      rounded-full
+                      text-xs
+                      font-semibold
+                      ${statut.classe}
+                    `}
+                  >
+                    {statut.texte}
+                  </span>
+
+                  <span
+                    className="
+                      inline-flex
+                      px-3
+                      py-1
+                      rounded-full
+                      bg-[#23C483]/10
+                      text-[#008F65]
+                      text-xs
+                      font-semibold
+                    "
+                  >
+                    🚗 Conducteur
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={choisirPhoto}
+                disabled={chargementPhoto}
+                className="
+                  px-5
+                  py-3
+                  rounded-xl
+                  border
+                  border-gray-200
+                  text-[#062A25]
+                  text-sm
+                  font-semibold
+                  hover:border-[#23C483]
+                  hover:bg-[#23C483]/5
+                  transition
+                  disabled:opacity-50
+                "
+              >
+                {chargementPhoto
+                  ? "Envoi..."
+                  : photo
+                    ? "📷 Modifier la photo"
+                    : "📷 Ajouter une photo"}
+              </button>
             </div>
 
-            <div>
-              <span
-                className={`
-                inline-flex
-                items-center
-                px-4
-                py-2
-                rounded-full
-                font-semibold
+            <div
+              className="
+                mt-6
+                pt-5
+                border-t
+                border-gray-100
+                flex
+                flex-wrap
+                gap-x-8
+                gap-y-2
                 text-sm
-
-                ${statut.classe}
-
-                `}
-              >
-                {statut.texte}
+                text-gray-500
+              "
+            >
+              <span>
+                📅 Membre conducteur depuis :{" "}
+                <strong
+                  className="
+                    text-gray-700
+                    font-semibold
+                  "
+                >
+                  {profil.date_creation
+                    ? new Date(profil.date_creation).toLocaleDateString("fr-FR")
+                    : "—"}
+                </strong>
               </span>
+
+              <span>🔄 PDP commune aux espaces passager et conducteur</span>
             </div>
           </div>
         </div>
-        {/* ============================
+
+        {/* ===============================================
             ACTIONS RAPIDES
-        ============================ */}
+        =============================================== */}
+
         <div
           className="
-          grid
-          md:grid-cols-3
-          gap-5
+            grid
+            md:grid-cols-3
+            gap-5
           "
         >
-          <Link
+          <ActionCard
             to="/conducteur/vehicules"
-            className="
-            bg-white
-            rounded-3xl
-            border
-            shadow-sm
-            p-6
-            hover:shadow-lg
-            transition
-            "
-          >
-            <div
-              className="
-              text-4xl
-              mb-3
-              "
-            >
-              🚗
-            </div>
+            icone="🚗"
+            titre="Mes véhicules"
+            description="Consultez et gérez vos véhicules."
+          />
 
-            <h3
-              className="
-              font-bold
-              text-[#062A25]
-              "
-            >
-              Mes véhicules
-            </h3>
-
-            <p
-              className="
-              text-gray-500
-              text-sm
-              mt-2
-              "
-            >
-              Consultez et gérez vos véhicules.
-            </p>
-          </Link>
-
-          <Link
+          <ActionCard
             to="/conducteur/vehicules/ajouter"
-            className="
-            bg-white
-            rounded-3xl
-            border
-            shadow-sm
-            p-6
-            hover:shadow-lg
-            transition
-            "
-          >
-            <div
-              className="
-              text-4xl
-              mb-3
-              "
-            >
-              ➕
-            </div>
+            icone="➕"
+            titre="Ajouter véhicule"
+            description="Enregistrez un nouveau véhicule."
+          />
 
-            <h3
-              className="
-              font-bold
-              text-[#062A25]
-              "
-            >
-              Ajouter véhicule
-            </h3>
-
-            <p
-              className="
-              text-gray-500
-              text-sm
-              mt-2
-              "
-            >
-              Enregistrez un nouveau véhicule.
-            </p>
-          </Link>
-
-          <Link
+          <ActionCard
             to="/conducteur/modifier-profil"
-            className="
-            bg-white
-            rounded-3xl
-            border
-            shadow-sm
-            p-6
-            hover:shadow-lg
-            transition
-            "
-          >
-            <div
-              className="
-              text-4xl
-              mb-3
-              "
-            >
-              ✏️
-            </div>
-
-            <h3
-              className="
-              font-bold
-              text-[#062A25]
-              "
-            >
-              Modifier profil
-            </h3>
-
-            <p
-              className="
-              text-gray-500
-              text-sm
-              mt-2
-              "
-            >
-              Mettez à jour vos informations.
-            </p>
-          </Link>
+            icone="✏️"
+            titre="Modifier profil"
+            description="Mettez à jour vos informations conducteur."
+          />
         </div>
-        {/* ============================
-            MESSAGE REJET
-        ============================ */}
+
+        {/* ===============================================
+            REJET
+        =============================================== */}
+
         {profil.statut_validation === "rejete" && profil.motif_rejet && (
           <MessageErreur message={`Motif du rejet : ${profil.motif_rejet}`} />
         )}
-        {/* ============================
-            AVIS CONDUCTEUR
-        ============================ */}
-        {donneesAvis && (
-          <div
-            className="
-            bg-white
-            rounded-3xl
-            border
-            shadow-xl
-            p-8
-            "
-          >
-            <h2
-              className="
-              text-2xl
-              font-bold
-              text-[#062A25]
-              mb-6
-              "
-            >
-              ⭐ Réputation conducteur
-            </h2>
 
+        {/* ===============================================
+            AVIS
+        =============================================== */}
+
+        {donneesAvis && (
+          <SectionCard titre="⭐ Réputation conducteur">
             <NoteGlobale
               noteMoyenne={donneesAvis.note_moyenne}
               totalAvis={donneesAvis.total_avis}
@@ -417,28 +577,18 @@ export default function MonProfilConducteur() {
             />
 
             {donneesAvis.avis?.length > 0 ? (
-              <div
-                className="
-                space-y-3
-                mt-6
-                "
-              >
-                {donneesAvis.avis
-
-                  .slice(0, 5)
-
-                  .map((avis) => (
-                    <AvisCard key={avis.id} avis={avis} />
-                  ))}
+              <div className="space-y-3 mt-6">
+                {donneesAvis.avis.slice(0, 5).map((avis) => (
+                  <AvisCard key={avis.id} avis={avis} />
+                ))}
 
                 {donneesAvis.total_avis > 5 && (
                   <p
                     className="
-                    text-[#062A25]
-                    text-sm
-                    text-center
-                    cursor-pointer
-                    hover:underline
+                      text-[#008F65]
+                      text-sm
+                      text-center
+                      font-semibold
                     "
                   >
                     Voir tous les avis ({donneesAvis.total_avis}) →
@@ -446,353 +596,188 @@ export default function MonProfilConducteur() {
                 )}
               </div>
             ) : (
-              <p
+              <div
                 className="
-                text-gray-400
-                text-sm
-                text-center
-                mt-5
+                  bg-gray-50
+                  rounded-2xl
+                  p-5
+                  mt-5
+                  text-center
+                  text-gray-400
+                  text-sm
                 "
               >
                 Vous n'avez pas encore reçu d'avis.
-              </p>
+              </div>
             )}
-          </div>
-        )}{" "}
-        {/* ============================
+          </SectionCard>
+        )}
+
+        {/* ===============================================
             CIN
-        ============================ */}
-        <div
-          className="
-          bg-white
-          rounded-3xl
-          border
-          shadow-xl
-          p-8
-          "
-        >
-          <h2
-            className="
-            text-2xl
-            font-bold
-            text-[#062A25]
-            mb-5
-            "
-          >
-            🪪 Carte d'identité (CIN)
-          </h2>
+        =============================================== */}
+
+        <SectionCard titre="🪪 Carte d'identité (CIN)">
+          <InfoBox
+            label="Numéro CIN"
+            valeur={profil.numero_cin || "Non renseigné"}
+          />
 
           <div
             className="
-            bg-gray-50
-            rounded-2xl
-            p-4
-            mb-5
-            "
-          >
-            <p
-              className="
-              text-gray-500
-              text-sm
-              "
-            >
-              Numéro CIN
-            </p>
-
-            <p
-              className="
-              font-semibold
-              text-gray-800
-              mt-1
-              "
-            >
-              {profil.numero_cin}
-            </p>
-          </div>
-
-          <div
-            className="
-            grid
-            md:grid-cols-2
-            gap-5
+              grid
+              md:grid-cols-2
+              gap-5
+              mt-5
             "
           >
             {urlImage(profil.cin_recto) && (
-              <div
-                className="
-                rounded-2xl
-                overflow-hidden
-                border
-                "
-              >
-                <p
-                  className="
-                  bg-gray-50
-                  px-4
-                  py-2
-                  text-sm
-                  font-semibold
-                  text-gray-700
-                  "
-                >
-                  Recto
-                </p>
-
-                <img
-                  src={urlImage(profil.cin_recto)}
-                  alt="CIN recto"
-                  className="
-                  w-full
-                  h-40
-                  object-cover
-                  "
-                />
-              </div>
+              <DocumentImage
+                titre="Recto"
+                src={urlImage(profil.cin_recto)}
+                alt="CIN recto"
+              />
             )}
 
             {urlImage(profil.cin_verso) && (
-              <div
-                className="
-                rounded-2xl
-                overflow-hidden
-                border
-                "
-              >
-                <p
-                  className="
-                  bg-gray-50
-                  px-4
-                  py-2
-                  text-sm
-                  font-semibold
-                  text-gray-700
-                  "
-                >
-                  Verso
-                </p>
-
-                <img
-                  src={urlImage(profil.cin_verso)}
-                  alt="CIN verso"
-                  className="
-                  w-full
-                  h-40
-                  object-cover
-                  "
-                />
-              </div>
+              <DocumentImage
+                titre="Verso"
+                src={urlImage(profil.cin_verso)}
+                alt="CIN verso"
+              />
             )}
           </div>
-        </div>
-        {/* ============================
+        </SectionCard>
+
+        {/* ===============================================
             PERMIS
-        ============================ */}
-        <div
-          className="
-          bg-white
-          rounded-3xl
-          border
-          shadow-xl
-          p-8
-          "
-        >
-          <h2
-            className="
-            text-2xl
-            font-bold
-            text-[#062A25]
-            mb-5
-            "
-          >
-            🚗 Permis de conduire
-          </h2>
+        =============================================== */}
+
+        <SectionCard titre="🚗 Permis de conduire">
+          <InfoBox
+            label="Informations permis"
+            valeur={
+              profil.numero_permis
+                ? `N° ${profil.numero_permis} · Catégorie ${profil.categorie_permis || "—"}`
+                : "Non renseigné"
+            }
+          />
 
           <div
             className="
-            bg-gray-50
-            rounded-2xl
-            p-4
-            mb-5
-            "
-          >
-            <p
-              className="
-              text-gray-500
-              text-sm
-              "
-            >
-              Informations permis
-            </p>
-
-            <p
-              className="
-              font-semibold
-              text-gray-800
-              mt-1
-              "
-            >
-              N° {profil.numero_permis}
-              {" · "}
-              Catégorie {profil.categorie_permis}
-            </p>
-          </div>
-
-          <div
-            className="
-            grid
-            md:grid-cols-2
-            gap-5
+              grid
+              md:grid-cols-2
+              gap-5
+              mt-5
             "
           >
             {urlImage(profil.permis_recto) && (
-              <img
+              <DocumentImage
+                titre="Recto"
                 src={urlImage(profil.permis_recto)}
                 alt="Permis recto"
-                className="
-                rounded-2xl
-                border
-                w-full
-                h-40
-                object-cover
-                "
               />
             )}
 
             {urlImage(profil.permis_verso) && (
-              <img
+              <DocumentImage
+                titre="Verso"
                 src={urlImage(profil.permis_verso)}
                 alt="Permis verso"
-                className="
-                rounded-2xl
-                border
-                w-full
-                h-40
-                object-cover
-                "
               />
             )}
           </div>
-        </div>
-        {/* ============================
+        </SectionCard>
+
+        {/* ===============================================
             CONTACT URGENCE
-        ============================ */}
-        <div
-          className="
-          bg-white
-          rounded-3xl
-          border
-          shadow-xl
-          p-8
-          "
-        >
-          <h2
-            className="
-            text-2xl
-            font-bold
-            text-[#062A25]
-            mb-5
-            "
-          >
-            🆘 Contact d'urgence
-          </h2>
+        =============================================== */}
 
+        <SectionCard titre="🆘 Contact d'urgence">
           <div
             className="
-            bg-gray-50
-            rounded-2xl
-            p-5
+              bg-gray-50
+              rounded-2xl
+              p-5
             "
           >
             <p
               className="
-              font-semibold
-              text-gray-800
+                font-semibold
+                text-gray-800
               "
             >
-              {profil.contact_urgence_nom}
+              {profil.contact_urgence_nom || "Non renseigné"}
             </p>
 
             <p
               className="
-              text-gray-500
-              mt-1
+                text-gray-500
+                mt-1
               "
             >
-              📞 {profil.contact_urgence_telephone}
+              📞 {profil.contact_urgence_telephone || "Non renseigné"}
             </p>
           </div>
-        </div>
-        {/* ============================
+        </SectionCard>
+
+        {/* ===============================================
             MOBILE MONEY
-        ============================ */}
-        <div
-          className="
-          bg-white
-          rounded-3xl
-          border
-          shadow-xl
-          p-8
-          "
-        >
-          <h2
-            className="
-            text-2xl
-            font-bold
-            text-[#062A25]
-            mb-5
-            "
-          >
-            💰 Paiement Mobile Money
-          </h2>
+        =============================================== */}
 
+        <SectionCard titre="💰 Paiement Mobile Money">
           <div
             className="
-            bg-gray-50
-            rounded-2xl
-            p-5
+              bg-gray-50
+              rounded-2xl
+              p-5
             "
           >
             <p
               className="
-              font-semibold
-              text-gray-800
+                font-semibold
+                text-gray-800
               "
             >
-              {profil.operateur_mobile_money}
+              {profil.operateur_mobile_money || "—"}
 
-              {" — "}
-
-              {profil.numero_mobile_money}
+              {profil.numero_mobile_money
+                ? ` — ${profil.numero_mobile_money}`
+                : ""}
             </p>
 
             <p
               className="
-              text-gray-500
-              mt-2
+                text-gray-500
+                mt-2
               "
             >
-              Titulaire : {profil.titulaire_mobile_money}
+              Titulaire : {profil.titulaire_mobile_money || "Non renseigné"}
             </p>
           </div>
-        </div>
-        {/* ============================
-            SECURITE MADAGO
-        ============================ */}
+        </SectionCard>
+
+        {/* ===============================================
+            SÉCURITÉ
+        =============================================== */}
+
         <div
           className="
-          bg-green-50
-          border
-          border-green-200
-          rounded-3xl
-          p-8
+            bg-green-50
+            border
+            border-green-200
+            rounded-3xl
+            p-6
+            md:p-8
           "
         >
           <h2
             className="
-            text-2xl
-            font-bold
-            text-[#062A25]
-            mb-5
+              text-xl
+              md:text-2xl
+              font-bold
+              text-[#062A25]
+              mb-5
             "
           >
             🔐 Sécurité MadaGo
@@ -800,18 +785,186 @@ export default function MonProfilConducteur() {
 
           <div
             className="
-            space-y-3
-            text-gray-700
+              grid
+              sm:grid-cols-3
+              gap-3
+              text-sm
+              text-gray-700
             "
           >
-            <p>✅ Identité enregistrée</p>
+            <div className="bg-white/70 rounded-xl p-4">
+              ✅ Identité enregistrée
+            </div>
 
-            <p>✅ Permis vérifié</p>
+            <div className="bg-white/70 rounded-xl p-4">✅ Permis vérifié</div>
 
-            <p>✅ Documents conducteur disponibles</p>
+            <div className="bg-white/70 rounded-xl p-4">
+              ✅ Documents conducteur disponibles
+            </div>
           </div>
         </div>
       </div>
     </LayoutConducteur>
+  );
+}
+
+// =======================================================
+// COMPOSANTS INTERNES
+// =======================================================
+
+function ActionCard({ to, icone, titre, description }) {
+  return (
+    <Link
+      to={to}
+      className="
+        group
+        bg-white
+        rounded-3xl
+        border
+        border-gray-100
+        shadow-sm
+        p-6
+        hover:-translate-y-1
+        hover:shadow-lg
+        hover:border-[#23C483]/40
+        transition
+      "
+    >
+      <div
+        className="
+          w-12
+          h-12
+          rounded-2xl
+          bg-[#23C483]/10
+          flex
+          items-center
+          justify-center
+          text-2xl
+          mb-4
+        "
+      >
+        {icone}
+      </div>
+
+      <h3
+        className="
+          font-bold
+          text-[#062A25]
+          group-hover:text-[#008F65]
+          transition
+        "
+      >
+        {titre}
+      </h3>
+
+      <p
+        className="
+          text-gray-500
+          text-sm
+          mt-2
+          leading-relaxed
+        "
+      >
+        {description}
+      </p>
+    </Link>
+  );
+}
+
+function SectionCard({ titre, children }) {
+  return (
+    <div
+      className="
+        bg-white
+        rounded-3xl
+        border
+        border-gray-100
+        shadow-sm
+        p-6
+        md:p-8
+      "
+    >
+      <h2
+        className="
+          text-xl
+          md:text-2xl
+          font-bold
+          text-[#062A25]
+          mb-5
+        "
+      >
+        {titre}
+      </h2>
+
+      {children}
+    </div>
+  );
+}
+
+function InfoBox({ label, valeur }) {
+  return (
+    <div
+      className="
+        bg-gray-50
+        rounded-2xl
+        p-5
+      "
+    >
+      <p
+        className="
+          text-gray-500
+          text-sm
+        "
+      >
+        {label}
+      </p>
+
+      <p
+        className="
+          font-semibold
+          text-gray-800
+          mt-1
+        "
+      >
+        {valeur}
+      </p>
+    </div>
+  );
+}
+
+function DocumentImage({ titre, src, alt }) {
+  return (
+    <div
+      className="
+        rounded-2xl
+        overflow-hidden
+        border
+        border-gray-200
+        bg-white
+      "
+    >
+      <p
+        className="
+          bg-gray-50
+          px-4
+          py-2
+          text-sm
+          font-semibold
+          text-gray-700
+        "
+      >
+        {titre}
+      </p>
+
+      <img
+        src={src}
+        alt={alt}
+        className="
+          w-full
+          h-48
+          object-cover
+        "
+      />
+    </div>
   );
 }
