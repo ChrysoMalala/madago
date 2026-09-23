@@ -42,4 +42,5 @@ backend/photos/
 # Système
 # =========================
 .DS_Store
-Thumbs.dbstructure-projet.txt
+Thumbs.db
+structure-projet.txt
