@@ -1,0 +1,64 @@
+@import "tailwindcss";
+@import 'leaflet/dist/leaflet.css';
+
+/*
+ * Active le mode sombre "manuel" (piloté par une classe .dark sur
+ * un ancêtre, généralement <html>), plutôt que le comportement par
+ * défaut de Tailwind v4 qui suit uniquement les préférences système
+ * (prefers-color-scheme). Ça permet à l'utilisateur de choisir
+ * explicitement son thème via les 2 icônes, indépendamment des
+ * réglages de son appareil.
+ *
+ * En Tailwind v4, cette configuration se fait en CSS (plus de
+ * tailwind.config.js pour ça) — c'est l'équivalent de l'ancien
+ * `darkMode: 'class'` des versions précédentes.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+.label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #062A25;
+  margin-bottom: 0.5rem;
+}
+
+.input {
+
+  width: 100%;
+
+  padding: 0.75rem 1rem;
+
+  border: 1px solid #d1d5db;
+
+  border-radius: 0.75rem;
+
+  background-color: white;
+
+  color: #062A25;
+
+  font-size: 0.95rem;
+
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+
+  transition: all 0.2s ease;
+
+}
+
+
+.input::placeholder {
+
+  color: #9ca3af;
+
+}
+
+
+.input:focus {
+
+  outline: none;
+
+  border-color: #23C483;
+
+  box-shadow: 0 0 0 3px rgba(35,196,131,0.15);
+
+}
