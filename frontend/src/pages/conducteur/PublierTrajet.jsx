@@ -581,12 +581,23 @@ export default function PublierTrajet() {
 
     setSieges(nouveauxSieges);
 
-    setPositions({
+    const positionsInitiales = {
       chauffeur: {
         x: 40,
         y: 60,
       },
+    };
+
+    nouveauxSieges.forEach((siege, index) => {
+      if (!siege.estChauffeur) {
+        positionsInitiales[siege.id] = {
+          x: 20 + (index % 3) * 25,
+          y: 20 + Math.floor(index / 3) * 30,
+        };
+      }
     });
+
+    setPositions(positionsInitiales);
   };
 
   // =====================================================
